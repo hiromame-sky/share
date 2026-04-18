@@ -1,410 +1,1763 @@
 <!DOCTYPE html>
+
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>QUICK P2P</title>
-  <link rel="icon" href="/share/favicon.png" type="image/png">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="/share/favicon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .code-char { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-        @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .animate-pulse-soft { animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        input, textarea { font-size: 16px !important; }
-        .progress-bar { transition: width 0.3s ease; }
-    </style>
+        :root {
+            --accent: #f0a500;
+            --accent-dark: #c47f00;
+            --bg: #0d0f14;
+            --surface: #161922;
+            --surface2: #1e2330;
+            --border: #2a3042;
+            --text: #e8eaf0;
+            --text-muted: #6b7280;
+            --text-dim: #3a4155;
+            --green: #22c55e;
+            --orange: #f97316;
+            --red: #ef4444;
+            --radius: 20px;
+            --font-mono: 'Space Mono', monospace;
+            --font-body: 'DM Sans', sans-serif;
+        }
+
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        -webkit-tap-highlight-color: transparent;
+        overflow-x: hidden;
+    }
+
+    /* ─── Subtle grid background ─── */
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(240,165,0,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(240,165,0,0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .app-wrapper {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        width: 100%;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 20px 16px 40px;
+    }
+
+    /* ─── Header ─── */
+    header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+    }
+
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .logo-icon {
+        width: 40px; height: 40px;
+        background: var(--accent);
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        color: #000;
+        box-shadow: 0 0 20px rgba(240,165,0,0.4);
+    }
+
+    .logo-text {
+        font-family: var(--font-mono);
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: var(--text);
+    }
+
+    .logo-text span { color: var(--accent); }
+
+    /* ─── Connection Status Badge ─── */
+    .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 100px;
+        padding: 6px 14px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-muted);
+        transition: all 0.3s;
+    }
+
+    .status-badge.connected { border-color: var(--green); color: var(--green); }
+    .status-badge.reconnecting { border-color: var(--orange); color: var(--orange); }
+    .status-badge.error { border-color: var(--red); color: var(--red); }
+
+    .status-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        transition: all 0.3s;
+    }
+
+    .status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse-glow 2s infinite; }
+    .status-dot.reconnecting { background: var(--orange); animation: blink 1s infinite; }
+    .status-dot.error { background: var(--red); }
+
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green); }
+        50% { opacity: 0.6; box-shadow: 0 0 12px var(--green); }
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    .anim-fade-up { animation: fadeUp 0.4s ease both; }
+
+    /* ─── Cards ─── */
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+    }
+
+    .card-lg { padding: 32px; }
+
+    /* ─── Setup View ─── */
+    #setup-view { animation: fadeUp 0.4s ease both; }
+
+    .setup-hero {
+        text-align: center;
+        padding: 48px 24px 40px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 16px;
+    }
+
+    .setup-hero h2 {
+        font-size: clamp(28px, 6vw, 48px);
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        margin-bottom: 10px;
+        color: var(--text);
+    }
+
+    .setup-hero h2 em {
+        font-style: normal;
+        color: var(--accent);
+    }
+
+    .setup-hero p {
+        color: var(--text-muted);
+        font-size: 14px;
+        max-width: 360px;
+        margin: 0 auto 36px;
+        line-height: 1.7;
+    }
+
+    .setup-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    @media (max-width: 480px) {
+        .setup-grid { grid-template-columns: 1fr; }
+    }
+
+    .btn-primary {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: var(--accent);
+        color: #000;
+        border: none;
+        border-radius: 16px;
+        padding: 28px 20px;
+        font-family: var(--font-body);
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary:hover { background: #fbbf24; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(240,165,0,0.3); }
+    .btn-primary:active { transform: scale(0.97); }
+
+    .join-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .code-input {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 16px;
+        text-align: center;
+        font-family: var(--font-mono);
+        font-size: clamp(18px, 5vw, 24px);
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        color: var(--text);
+        outline: none;
+        transition: all 0.2s;
+        -webkit-appearance: none;
+    }
+
+    .code-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(240,165,0,0.15); }
+    .code-input::placeholder { color: var(--text-dim); letter-spacing: 0.05em; font-size: 13px; }
+
+    .btn-secondary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: var(--surface2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        font-family: var(--font-body);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-secondary:active { transform: scale(0.97); }
+
+    /* ─── Loading View ─── */
+    #loading-view { text-align: center; padding: 80px 20px; }
+
+    .spinner {
+        width: 56px; height: 56px;
+        border: 3px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 24px;
+    }
+
+    #loading-view h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    #loading-view p { color: var(--text-muted); font-size: 14px; }
+
+    .reconnect-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(249,115,22,0.1);
+        border: 1px solid rgba(249,115,22,0.3);
+        border-radius: 100px;
+        padding: 4px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--orange);
+        margin-bottom: 16px;
+        font-family: var(--font-mono);
+        letter-spacing: 0.08em;
+    }
+
+    .btn-ghost {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: underline;
+        text-decoration-color: var(--border);
+        margin-top: 28px;
+        font-family: var(--font-body);
+        transition: color 0.2s;
+    }
+
+    .btn-ghost:hover { color: var(--red); }
+
+    /* ─── Connected View ─── */
+    #connected-view { display: none; gap: 16px; flex-direction: column; }
+    #connected-view.visible { display: flex; animation: fadeUp 0.35s ease both; }
+
+    /* Transfer Progress Bar (top of connected view) */
+    .transfer-status-bar {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .transfer-stat {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .transfer-stat-label {
+        font-family: var(--font-mono);
+        font-size: 9px;
+        color: var(--text-muted);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    .transfer-stat-value {
+        font-family: var(--font-mono);
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .transfer-stat-value.accent { color: var(--accent); }
+    .transfer-stat-value.green { color: var(--green); }
+
+    .transfer-stat-divider {
+        width: 1px;
+        height: 28px;
+        background: var(--border);
+        flex-shrink: 0;
+    }
+
+    .transfer-stat-spacer { flex: 1; }
+
+    /* Sync textarea */
+    .sync-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+    .sync-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .sync-card-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    .btn-mini {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 5px 12px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 100px;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-family: var(--font-mono);
+        letter-spacing: 0.05em;
+        transition: all 0.2s;
+    }
+
+    .btn-mini:hover { border-color: var(--accent); color: var(--accent); }
+
+    #sync-textarea {
+        width: 100%;
+        min-height: 160px;
+        background: transparent;
+        border: none;
+        outline: none;
+        resize: none;
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 14px;
+        line-height: 1.8;
+        padding: 20px;
+    }
+
+    #sync-textarea::placeholder { color: var(--text-dim); }
+
+    .sync-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 20px;
+        border-top: 1px solid var(--border);
+        font-size: 10px;
+        font-family: var(--font-mono);
+        color: var(--text-dim);
+        letter-spacing: 0.06em;
+    }
+
+    .sync-dot {
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        transition: all 0.2s;
+    }
+
+    .sync-dot.syncing { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    /* ─── File Area ─── */
+    .file-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    @media (max-width: 600px) {
+        .file-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Drop Zone */
+    .drop-zone {
+        background: var(--surface);
+        border: 2px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 40px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+        min-height: 180px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .drop-zone:hover { border-color: var(--accent); background: rgba(240,165,0,0.04); }
+    .drop-zone.dragging { border-color: var(--accent); background: rgba(240,165,0,0.08); transform: scale(1.01); }
+    .drop-zone.sending { cursor: not-allowed; }
+
+    .drop-icon {
+        width: 48px; height: 48px;
+        background: rgba(240,165,0,0.1);
+        border-radius: 14px;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent);
+        transition: transform 0.2s;
+    }
+
+    .drop-zone:hover .drop-icon { transform: scale(1.1); }
+
+    .drop-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-muted);
+    }
+
+    .drop-sublabel {
+        font-size: 11px;
+        color: var(--text-dim);
+    }
+
+    /* Upload Progress */
+    .upload-progress {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        padding: 0 16px 14px;
+    }
+
+    .upload-progress-track {
+        height: 3px;
+        background: var(--border);
+        border-radius: 100px;
+        overflow: hidden;
+        margin-bottom: 6px;
+    }
+
+    .upload-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #fbbf24);
+        border-radius: 100px;
+        width: 0%;
+        transition: width 0.2s;
+        background-size: 200% 100%;
+    }
+
+    .upload-progress-fill.animate { animation: shimmer 1.5s linear infinite; }
+
+    .upload-progress-label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-muted);
+        text-align: center;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    /* Receive progress banner */
+    .receive-progress-banner {
+        display: none;
+        background: rgba(240,165,0,0.06);
+        border: 1px solid rgba(240,165,0,0.2);
+        border-radius: 12px;
+        padding: 10px 14px;
+        margin-top: 8px;
+    }
+
+    .receive-progress-banner.visible { display: block; }
+
+    .receive-progress-label {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--accent);
+        margin-bottom: 6px;
+    }
+
+    .receive-progress-track {
+        height: 3px;
+        background: var(--border);
+        border-radius: 100px;
+        overflow: hidden;
+    }
+
+    .receive-progress-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 100px;
+        width: 0%;
+        transition: width 0.15s;
+    }
+
+    /* File List */
+    .file-list-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        min-height: 180px;
+    }
+
+    .file-list-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .file-count-badge {
+        background: var(--surface2);
+        border-radius: 100px;
+        padding: 2px 8px;
+        font-size: 9px;
+    }
+
+    .file-list-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 32px;
+        color: var(--text-dim);
+        font-size: 12px;
+    }
+
+    #file-list-items { overflow-y: auto; max-height: 320px; }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.15s;
+        animation: fadeUp 0.3s ease both;
+    }
+
+    .file-item:last-child { border-bottom: none; }
+    .file-item:hover { background: var(--surface2); }
+
+    .file-item-icon {
+        width: 36px; height: 36px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        font-size: 11px;
+        font-weight: 700;
+        font-family: var(--font-mono);
+    }
+
+    .file-item-icon.sent { background: rgba(240,165,0,0.1); color: var(--accent); }
+    .file-item-icon.recv { background: rgba(34,197,94,0.1); color: var(--green); }
+
+    .file-item-info { flex: 1; min-width: 0; }
+
+    .file-item-name {
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text);
+    }
+
+    .file-item-meta {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-top: 2px;
+    }
+
+    .btn-dl {
+        width: 32px; height: 32px;
+        border-radius: 10px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent);
+        text-decoration: none;
+        transition: all 0.15s;
+        flex-shrink: 0;
+    }
+
+    .btn-dl:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* ─── Session Info strip ─── */
+    .session-strip {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .session-code-display {
+        font-family: var(--font-mono);
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        color: var(--accent);
+    }
+
+    .session-label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    .btn-show-qr {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(240,165,0,0.1);
+        border: 1px solid rgba(240,165,0,0.2);
+        border-radius: 10px;
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--accent);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: var(--font-mono);
+    }
+
+    .btn-show-qr:hover { background: rgba(240,165,0,0.18); }
+
+    /* ─── Terminate Button ─── */
+    .btn-terminate {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 20px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-family: var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        transition: all 0.2s;
+        width: 100%;
+    }
+
+    .btn-terminate:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.04); }
+
+    /* ─── Code Overlay ─── */
+    #code-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(13,15,20,0.95);
+        backdrop-filter: blur(20px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 100;
+    }
+
+    #code-overlay.visible { display: flex; animation: fadeUp 0.3s ease both; }
+
+    .overlay-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 40px 32px;
+        text-align: center;
+        width: 100%;
+        max-width: 360px;
+    }
+
+    .overlay-label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+    }
+
+    .overlay-code {
+        font-family: var(--font-mono);
+        font-size: clamp(36px, 10vw, 56px);
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        margin-bottom: 28px;
+    }
+
+    .qr-wrapper {
+        background: #fff;
+        border-radius: 20px;
+        padding: 16px;
+        display: inline-flex;
+        margin-bottom: 28px;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    .overlay-share-url {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-muted);
+        word-break: break-all;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 20px;
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    .overlay-share-url:hover { border-color: var(--accent); }
+
+    .btn-overlay-close {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+        cursor: pointer;
+        font-family: var(--font-body);
+        transition: all 0.2s;
+    }
+
+    .btn-overlay-close:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ─── Toast Notification ─── */
+    .toast-container {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 200;
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+        pointer-events: none;
+        width: calc(100% - 32px);
+        max-width: 380px;
+    }
+
+    .toast {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: toastIn 0.3s ease both;
+        pointer-events: all;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    .toast.success { border-color: var(--green); }
+    .toast.warning { border-color: var(--orange); }
+    .toast.error { border-color: var(--red); }
+    .toast.info { border-color: var(--accent); }
+
+    .toast-icon { font-size: 16px; }
+
+    @keyframes toastIn {
+        from { opacity: 0; transform: translateY(16px) scale(0.96); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes toastOut {
+        from { opacity: 1; transform: translateY(0) scale(1); }
+        to { opacity: 0; transform: translateY(16px) scale(0.96); }
+    }
+
+    /* ─── Misc ─── */
+    input, textarea { font-size: 16px !important; }
+
+    .hidden { display: none !important; }
+
+    @media (min-width: 640px) {
+        .app-wrapper { padding: 32px 32px 60px; }
+        header { margin-bottom: 48px; }
+    }
+
+    @media (min-width: 960px) {
+        .app-wrapper { padding: 40px 40px 80px; }
+    }
+</style>
+
+
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+<body>
 
-    <div class="flex-grow w-full max-w-4xl mx-auto px-4 py-6 md:px-8 md:py-10">
-        <!-- Header -->
-        <header class="flex items-center justify-between mb-8 md:mb-12">
-            <div class="flex items-center gap-2 md:gap-3">
-                <div class="w-10 h-10 md:w-12 md:h-12 bg-yellow-600 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-lg">
-                    <i data-lucide="zap" class="w-5 h-5 md:w-6 md:h-6"></i>
-                </div>
-                <h1 class="text-xl md:text-2xl font-black tracking-tight italic">QUICK P2P</h1>
-            </div>
-            <div id="connection-status" class="flex items-center gap-2 bg-white px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-slate-200 shadow-sm transition-all">
-                <span id="status-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
-                <span id="status-text" class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-tighter">Disconnected</span>
-            </div>
-        </header>
 
-        <!-- Main Dashboard -->
-        <main id="main-ui" class="w-full">
-            <!-- Setup Section -->
-            <section id="setup-view" class="space-y-6 max-w-lg mx-auto md:max-w-none">
-                <div class="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-16 shadow-xl shadow-slate-200/50 border border-slate-100 text-center">
-                    <h2 class="text-2xl md:text-4xl font-black mb-3 leading-tight">爆速でつなぐ</h2>
-                    <p class="text-slate-400 mb-8 md:mb-12 text-sm md:text-base font-medium">安定した大容量ファイル送信に対応。データは端末間で直接移動します。</p>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-stretch">
-                        <button id="host-trigger" class="group relative bg-yellow-600 text-white p-6 md:p-10 rounded-3xl font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-3">
-                            <i data-lucide="plus-circle" class="w-8 h-8 md:w-10 md:h-10 group-hover:scale-110 transition-transform"></i>
-                            <span class="text-base md:text-lg">新しい接続を作成</span>
+<div class="app-wrapper">
+    <header>
+        <div class="logo">
+            <div class="logo-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <span class="logo-text">QUICK<span>P2P</span></span>
+        </div>
+        <div id="status-badge" class="status-badge">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="status-text">OFFLINE</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- ── Setup ── -->
+        <section id="setup-view">
+            <div class="setup-hero">
+                <h2>端末間を<em>直接</em>つなぐ</h2>
+                <p>サーバー不要。ファイルもテキストも、ブラウザだけで安全にピア接続。</p>
+                <div class="setup-grid">
+                    <button id="host-trigger" class="btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        新しい接続を作成
+                    </button>
+                    <div class="join-panel">
+                        <input id="join-code-input" class="code-input" type="text" inputmode="numeric" maxlength="8" placeholder="8桁のコードを入力">
+                        <button id="join-trigger" class="btn-secondary">
+                            コードで参加
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                         </button>
-
-                        <div class="flex flex-col gap-3">
-                            <input id="join-code-input" type="text" inputmode="numeric" maxlength="8" placeholder="8桁のコードを入力" 
-                                class="w-full p-5 md:p-6 bg-slate-100 border-none rounded-3xl text-center text-xl md:text-2xl font-black tracking-[0.2em] focus:bg-white outline-none transition-all placeholder:tracking-normal placeholder:text-slate-300">
-                            <button id="join-trigger" class="w-full py-4 md:py-5 bg-slate-900 text-white rounded-3xl font-bold active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <span>コードで参加</span>
-                                <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                            </button>
-                        </div>
                     </div>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <!-- Loading View -->
-            <section id="loading-view" class="hidden py-16 md:py-24 text-center">
-                <div class="inline-block p-5 bg-yellow-50 text-yellow-600 rounded-full mb-6 animate-spin">
-                    <i data-lucide="loader-2" class="w-10 h-10"></i>
-                </div>
-                <h3 id="loading-title" class="text-xl md:text-2xl font-bold mb-2">接続待機中...</h3>
-                <p id="loading-msg" class="text-sm md:text-base text-slate-400">ネットワークの状態を確認しています。</p>
-                <button onclick="terminateAll(true)" class="mt-8 text-xs md:text-sm font-bold text-slate-400 underline decoration-slate-200">キャンセル</button>
-            </section>
+        <!-- ── Loading ── -->
+        <section id="loading-view" class="hidden">
+            <div id="reconnect-badge" class="reconnect-badge hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                RECONNECTING
+            </div>
+            <div class="spinner"></div>
+            <h3 id="loading-title">接続を準備中...</h3>
+            <p id="loading-msg">シグナリングサーバーに接続しています。</p>
+            <button class="btn-ghost" onclick="terminateAll(true)">キャンセル</button>
+        </section>
 
-            <!-- Active Connection View -->
-            <section id="connected-view" class="hidden space-y-4 md:space-y-6">
-                <div class="bg-white rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <i data-lucide="message-square" class="w-3 h-3"></i> Sync Notes
-                        </span>
-                        <button onclick="copyAllText()" class="text-[10px] md:text-xs font-bold px-3 py-1.5 bg-slate-100 rounded-full active:bg-slate-200 transition-all uppercase">Copy All</button>
+        <!-- ── Connected ── -->
+        <section id="connected-view">
+
+            <!-- Session info bar (host only) -->
+            <div id="session-bar" class="card hidden">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <div class="session-label">接続コード</div>
+                        <div id="session-code-display" class="session-code-display">---- ----</div>
                     </div>
-                    <textarea id="sync-textarea" placeholder="ここに書いた内容は即座に相手に反映されます..." 
-                        class="w-full h-48 md:h-64 bg-transparent border-none focus:ring-0 text-slate-700 leading-relaxed placeholder:text-slate-300 resize-none outline-none shadow-none"></textarea>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                    <div id="drop-zone" class="bg-white rounded-[2rem] p-8 border-2 border-dashed border-slate-100 hover:border-yellow-300 hover:bg-yellow-50/30 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer group">
-                        <input type="file" id="file-input" class="hidden">
-                        <div class="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
-                        </div>
-                        <span id="drop-zone-text" class="text-sm font-bold text-slate-500 group-hover:text-yellow-600 text-center">ファイルを送信</span>
-                        <div id="upload-progress-container" class="w-full h-1 bg-slate-100 rounded-full mt-2 hidden overflow-hidden">
-                            <div id="upload-progress-bar" class="progress-bar h-full bg-yellow-500 w-0"></div>
-                        </div>
-                    </div>
-                    <div id="file-list" class="space-y-3"></div>
-                </div>
-                
-                <div class="pt-10 text-center">
-                    <button onclick="terminateAll(true)" class="text-[10px] md:text-xs font-black text-slate-300 hover:text-red-400 uppercase tracking-[0.3em] transition-colors flex items-center justify-center gap-2 mx-auto">
-                        <i data-lucide="log-out" class="w-3 h-3"></i> Terminate Connection
+                    <button id="show-qr-btn" class="btn-show-qr" onclick="showOverlay()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                        QRコードを表示
                     </button>
                 </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Code Overlay -->
-    <div id="code-overlay" class="fixed inset-0 bg-yellow-600/95 backdrop-blur-xl hidden items-center justify-center p-4 z-50">
-        <div class="text-center text-white max-w-md w-full">
-            <h3 class="text-[10px] font-black uppercase tracking-[0.4em] mb-6 opacity-70">Pairing Code</h3>
-            <div id="display-host-code" class="text-5xl md:text-7xl font-black tracking-tighter mb-8 code-char">---- ----</div>
-            <div id="host-qrcode-container" class="bg-white p-3 rounded-[2rem] inline-block mb-8 shadow-2xl">
-                <div id="host-qrcode"></div>
             </div>
-            <button onclick="hideOverlay()" class="w-full max-w-xs py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-bold transition-all mx-auto block border border-white/20">
-                閉じる
-            </button>
-        </div>
-    </div>
 
-    <script>
-        let peer = null;
-        let conn = null;
-        let isTerminating = false;
-        const SESSION_KEY = 'p2p_reconnect_session';
-        const SESSION_TIMEOUT = 5 * 60 * 1000; // 5分間維持
-        const CHUNK_SIZE = 16384; 
-        let receivingFiles = {};
+            <!-- Transfer stats -->
+            <div class="transfer-status-bar">
+                <div class="transfer-stat">
+                    <div class="transfer-stat-label">送信</div>
+                    <div id="stat-sent" class="transfer-stat-value accent">0 B</div>
+                </div>
+                <div class="transfer-stat-divider"></div>
+                <div class="transfer-stat">
+                    <div class="transfer-stat-label">受信</div>
+                    <div id="stat-recv" class="transfer-stat-value green">0 B</div>
+                </div>
+                <div class="transfer-stat-divider"></div>
+                <div class="transfer-stat">
+                    <div class="transfer-stat-label">速度</div>
+                    <div id="stat-speed" class="transfer-stat-value">—</div>
+                </div>
+                <div class="transfer-stat-spacer"></div>
+                <div class="transfer-stat" style="align-items:flex-end;">
+                    <div class="transfer-stat-label">ファイル数</div>
+                    <div id="stat-files" class="transfer-stat-value">0</div>
+                </div>
+            </div>
 
-        function showView(id) {
-            ['setup-view', 'loading-view', 'connected-view'].forEach(v => {
-                document.getElementById(v).classList.add('hidden');
-            });
-            document.getElementById(id).classList.remove('hidden');
-        }
-
-        function hideOverlay() {
-            document.getElementById('code-overlay').classList.replace('flex', 'hidden');
-        }
-
-        // --- Session Management ---
-        function saveSession(role, myId, targetId = null) {
-            const session = {
-                role,
-                myId,
-                targetId,
-                timestamp: Date.now()
-            };
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        }
-
-        function clearSession() {
-            sessionStorage.removeItem(SESSION_KEY);
-            document.getElementById('join-code-input').value = '';
-            document.getElementById('file-list').innerHTML = '';
-            document.getElementById('sync-textarea').value = '';
-        }
-
-        function getValidSession() {
-            const raw = sessionStorage.getItem(SESSION_KEY);
-            if (!raw) return null;
-            const session = JSON.parse(raw);
-            if (Date.now() - session.timestamp > SESSION_TIMEOUT) {
-                clearSession();
-                return null;
-            }
-            return session;
-        }
-
-        // --- Peer & Connection Cleanup ---
-        function cleanupPeer() {
-            if (conn) {
-                conn.off('open'); conn.off('data'); conn.off('close'); conn.off('error');
-                conn.close();
-                conn = null;
-            }
-            if (peer) {
-                peer.off('open'); peer.off('connection'); peer.off('error'); peer.off('disconnected');
-                peer.destroy();
-                peer = null;
-            }
-            receivingFiles = {};
-            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-300';
-            document.getElementById('status-text').innerText = 'Disconnected';
-        }
-
-        function setupConnectionListeners() {
-            if (!conn) return;
-
-            conn.on('open', () => {
-                document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
-                document.getElementById('status-text').innerText = 'Connected';
-                showView('connected-view');
-                hideOverlay();
-                
-                // 接続が確立したらセッションを更新（タイムスタンプ更新）
-                const session = getValidSession();
-                if (session) saveSession(session.role, session.myId, session.targetId);
-            });
-
-            conn.on('data', (data) => {
-                if (data.type === 'terminate') terminateAll(false);
-                else if (data.type === 'text') {
-                    document.getElementById('sync-textarea').value = data.payload;
-                } else if (data.type === 'file-chunk') {
-                    handleIncomingChunk(data);
-                }
-            });
-
-            conn.on('close', () => {
-                if (!isTerminating) {
-                    document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-orange-400';
-                    document.getElementById('status-text').innerText = 'Connection Lost';
-                    // 自動再試行はせずにユーザーに状態を知らせる
-                }
-            });
-
-            conn.on('error', (err) => {
-                console.error("Conn Error:", err);
-                terminateAll(true);
-            });
-        }
-
-        function initiateHost(existingId = null) {
-            cleanupPeer();
-            isTerminating = false;
-            
-            const randomCode = existingId || Math.floor(10000000 + Math.random() * 90000000).toString();
-            peer = new Peer(randomCode, { debug: 1 });
-
-            peer.on('open', (id) => {
-                saveSession('host', id);
-                document.getElementById('display-host-code').innerText = id.slice(0,4) + ' ' + id.slice(4,8);
-                const qrContainer = document.getElementById("host-qrcode");
-                qrContainer.innerHTML = '';
-                const shareUrl = window.location.origin + window.location.pathname + `?join=${id}`;
-                new QRCode(qrContainer, { text: shareUrl, width: 200, height: 200, colorDark: "#ca8a04" });
-                
-                // 再接続時はオーバーレイを出さない（既に接続画面にいる可能性があるため）
-                if (!existingId) {
-                    document.getElementById('code-overlay').classList.replace('hidden', 'flex');
-                }
-            });
-
-            peer.on('connection', (c) => {
-                conn = c;
-                setupConnectionListeners();
-            });
-
-            peer.on('error', (err) => {
-                if (err.type === 'unavailable-id') initiateHost();
-                else terminateAll(true);
-            });
-        }
-
-        function initiateJoin(targetCode = null) {
-            cleanupPeer();
-            isTerminating = false;
-
-            let code = targetCode || document.getElementById('join-code-input').value.replace(/\s/g, '');
-            if (code.length < 8) return;
-
-            showView('loading-view');
-            peer = new Peer({ debug: 1 });
-
-            peer.on('open', (myId) => {
-                saveSession('join', myId, code);
-                conn = peer.connect(code, { reliable: true });
-                setupConnectionListeners();
-            });
-
-            peer.on('error', (err) => {
-                alert("接続に失敗しました。セッションをクリアします。");
-                terminateAll(true);
-            });
-        }
-
-        function terminateAll(isInitiator = false) {
-            isTerminating = true;
-            if (isInitiator && conn && conn.open) {
-                conn.send({ type: 'terminate' });
-            }
-            
-            clearSession();
-            cleanupPeer();
-            showView('setup-view');
-            hideOverlay();
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        // --- File Logic ---
-        const fileInput = document.getElementById('file-input');
-        document.getElementById('drop-zone').onclick = () => fileInput.click();
-
-        fileInput.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file || !conn || !conn.open) return;
-            const progressContainer = document.getElementById('upload-progress-container');
-            const progressBar = document.getElementById('upload-progress-bar');
-            const dropZoneText = document.getElementById('drop-zone-text');
-
-            progressContainer.classList.remove('hidden');
-            dropZoneText.innerText = "送信中...";
-            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-            const fileId = Math.random().toString(36).substring(2, 9);
-
-            try {
-                for (let i = 0; i < totalChunks; i++) {
-                    const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-                    const buffer = await chunk.arrayBuffer();
-                    if (!conn || !conn.open) break;
-                    conn.send({
-                        type: 'file-chunk', fileId, fileName: file.name, fileSize: file.size,
-                        chunkIndex: i, totalChunks, data: buffer
-                    });
-                    progressBar.style.width = Math.round(((i + 1) / totalChunks) * 100) + '%';
-                }
-            } catch (err) { console.error(err); }
-
-            setTimeout(() => {
-                progressContainer.classList.add('hidden');
-                progressBar.style.width = '0%';
-                dropZoneText.innerText = "ファイルを送信";
-                addFileToList({ name: file.name, size: file.size, data: URL.createObjectURL(file) }, true);
-                fileInput.value = '';
-            }, 500);
-        };
-
-        function handleIncomingChunk(chunkData) {
-            const { fileId, fileName, fileSize, chunkIndex, totalChunks, data } = chunkData;
-            if (!receivingFiles[fileId]) {
-                receivingFiles[fileId] = { name: fileName, size: fileSize, chunks: new Array(totalChunks), receivedCount: 0 };
-            }
-            receivingFiles[fileId].chunks[chunkIndex] = data;
-            receivingFiles[fileId].receivedCount++;
-            if (receivingFiles[fileId].receivedCount === totalChunks) {
-                const blob = new Blob(receivingFiles[fileId].chunks);
-                addFileToList({ name: fileName, size: fileSize, data: URL.createObjectURL(blob) }, false);
-                delete receivingFiles[fileId];
-            }
-        }
-
-        function addFileToList(file, isMe) {
-            const list = document.getElementById('file-list');
-            const item = document.createElement('div');
-            item.className = "flex items-center justify-between p-4 bg-white border border-slate-100 rounded-3xl shadow-sm";
-            item.innerHTML = `
-                <div class="flex items-center gap-3 overflow-hidden">
-                    <div class="w-10 h-10 ${isMe ? 'bg-yellow-50 text-yellow-500' : 'bg-slate-50 text-slate-400'} rounded-2xl flex items-center justify-center">
-                        <i data-lucide="file" class="w-5 h-5"></i>
+            <!-- Sync Notes -->
+            <div class="sync-card">
+                <div class="sync-card-header">
+                    <div class="sync-card-header-left">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        SYNC NOTES
                     </div>
-                    <div class="overflow-hidden">
-                        <p class="text-xs font-bold truncate">${file.name}</p>
-                        <p class="text-[9px] text-slate-300 uppercase">${(file.size / 1024).toFixed(1)} KB ${isMe ? ' (Sent)' : ''}</p>
+                    <button class="btn-mini" onclick="copyAllText()">COPY ALL</button>
+                </div>
+                <textarea id="sync-textarea" placeholder="ここに入力した内容は即座に相手の画面に反映されます..."></textarea>
+                <div class="sync-indicator">
+                    <div id="sync-dot" class="sync-dot"></div>
+                    <span id="sync-label">IDLE</span>
+                </div>
+            </div>
+
+            <!-- File area -->
+            <div class="file-grid">
+                <!-- Drop Zone -->
+                <div>
+                    <div id="drop-zone" class="drop-zone">
+                        <input type="file" id="file-input" class="hidden" multiple>
+                        <div class="drop-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                        </div>
+                        <div class="drop-label" id="drop-zone-text">ファイルを送信</div>
+                        <div class="drop-sublabel">クリックまたはドラッグ＆ドロップ</div>
+                        <div id="upload-progress" class="upload-progress hidden">
+                            <div class="upload-progress-track">
+                                <div id="upload-progress-fill" class="upload-progress-fill"></div>
+                            </div>
+                            <div class="upload-progress-label">
+                                <span id="upload-file-name">送信中...</span>
+                                <span id="upload-pct">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Receive progress -->
+                    <div id="recv-progress-banner" class="receive-progress-banner">
+                        <div class="receive-progress-label">
+                            <span id="recv-file-name">受信中...</span>
+                            <span id="recv-pct">0%</span>
+                        </div>
+                        <div class="receive-progress-track">
+                            <div id="recv-progress-fill" class="receive-progress-fill"></div>
+                        </div>
                     </div>
                 </div>
-                <a href="${file.data}" download="${file.name}" class="p-3 text-yellow-600 bg-yellow-50 rounded-2xl active:scale-90 transition-transform">
-                    <i data-lucide="download" class="w-4 h-4"></i>
-                </a>
-            `;
-            list.prepend(item);
-            lucide.createIcons();
-        }
 
-        document.getElementById('sync-textarea').addEventListener('input', (e) => {
-            if (conn && conn.open) conn.send({ type: 'text', payload: e.target.value });
+                <!-- File List -->
+                <div class="file-list-panel">
+                    <div class="file-list-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                        FILES
+                        <span id="file-count-badge" class="file-count-badge">0</span>
+                    </div>
+                    <div id="file-list-items">
+                        <div id="file-list-empty" class="file-list-empty">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-dim)"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                            ファイルはまだありません
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminate -->
+            <button class="btn-terminate" onclick="terminateAll(true)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                TERMINATE CONNECTION
+            </button>
+        </section>
+    </main>
+</div>
+
+<!-- ── Code Overlay ── -->
+<div id="code-overlay">
+    <div class="overlay-card">
+        <div class="overlay-label">Pairing Code</div>
+        <div id="display-host-code" class="overlay-code">---- ----</div>
+        <div class="qr-wrapper">
+            <div id="host-qrcode"></div>
+        </div>
+        <div id="overlay-share-url" class="overlay-share-url" onclick="copyShareUrl(this)">
+            接続URLを生成中...
+        </div>
+        <button class="btn-overlay-close" onclick="hideOverlay()">閉じる</button>
+    </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let peer = null;
+let conn = null;
+let isTerminating = false;
+let isHost = false;
+let myPeerId = null;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT = 8;
+const RECONNECT_DELAY_BASE = 1500;
+
+const SESSION_KEY = 'qp2p_session_v2';
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30分
+
+// チャンク設定 - 大容量対応
+const CHUNK_SIZE = 65536; // 64KB chunks
+const SEND_QUEUE_MAX = 16; // バックプレッシャー制御
+
+let receivingFiles = {};
+let totalSent = 0;
+let totalRecv = 0;
+let fileCount = 0;
+let speedSamples = [];
+let speedTimer = null;
+let lastSpeedBytes = 0;
+let currentSendQueue = 0;
+let isSending = false;
+let textSyncTimer = null;
+
+// ═══════════════════════════════════════════════════════
+//  VIEW MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function showView(id) {
+    ['setup-view', 'loading-view', 'connected-view'].forEach(v => {
+        const el = document.getElementById(v);
+        if (v === 'connected-view') {
+            el.classList.remove('visible');
+            el.style.display = '';
+        } else {
+            el.classList.add('hidden');
+        }
+    });
+
+    const target = document.getElementById(id);
+    if (id === 'connected-view') {
+        target.classList.add('visible');
+    } else {
+        target.classList.remove('hidden');
+    }
+}
+
+function showOverlay() {
+    document.getElementById('code-overlay').classList.add('visible');
+}
+
+function hideOverlay() {
+    document.getElementById('code-overlay').classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATUS
+// ═══════════════════════════════════════════════════════
+function setStatus(state, text) {
+    const badge = document.getElementById('status-badge');
+    const dot = document.getElementById('status-dot');
+    const label = document.getElementById('status-text');
+    badge.className = 'status-badge ' + state;
+    dot.className = 'status-dot ' + state;
+    label.textContent = text;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+function showToast(message, type = 'info', duration = 3000) {
+    const icons = { success: '✓', warning: '⚠', error: '✕', info: '→' };
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type]}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = 'toastOut 0.3s ease both';
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SESSION MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function saveSession(role, myId, targetId = null) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        role, myId, targetId, timestamp: Date.now()
+    }));
+}
+
+function getValidSession() {
+    try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (Date.now() - s.timestamp > SESSION_TIMEOUT) { clearSession(); return null; }
+        return s;
+    } catch { return null; }
+}
+
+function clearSession() {
+    sessionStorage.removeItem(SESSION_KEY);
+    document.getElementById('join-code-input').value = '';
+    document.getElementById('file-list-items').innerHTML =
+        `<div id="file-list-empty" class="file-list-empty">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-dim)"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            ファイルはまだありません
+        </div>`;
+    document.getElementById('sync-textarea').value = '';
+    totalSent = 0; totalRecv = 0; fileCount = 0;
+    updateStats();
+    document.getElementById('file-count-badge').textContent = '0';
+}
+
+// ═══════════════════════════════════════════════════════
+//  PEER CLEANUP
+// ═══════════════════════════════════════════════════════
+function cleanupPeer() {
+    clearTimeout(reconnectTimer);
+    if (conn) {
+        try { conn.off('open'); conn.off('data'); conn.off('close'); conn.off('error'); conn.close(); } catch {}
+        conn = null;
+    }
+    if (peer) {
+        try { peer.off('open'); peer.off('connection'); peer.off('error'); peer.off('disconnected'); peer.destroy(); } catch {}
+        peer = null;
+    }
+    receivingFiles = {};
+    isSending = false;
+    currentSendQueue = 0;
+    clearInterval(speedTimer);
+    speedTimer = null;
+    setStatus('', 'OFFLINE');
+}
+
+// ═══════════════════════════════════════════════════════
+//  PEER CONFIG - 複数のSTUN/TURNサーバーで安定化
+// ═══════════════════════════════════════════════════════
+const PEER_CONFIG = {
+    debug: 0,
+    config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'stun:stun.relay.metered.ca:80' },
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+    }
+};
+
+// ═══════════════════════════════════════════════════════
+//  CONNECTION LISTENERS
+// ═══════════════════════════════════════════════════════
+function setupConnectionListeners() {
+    if (!conn) return;
+
+    conn.on('open', () => {
+        reconnectAttempts = 0;
+        setStatus('connected', 'CONNECTED');
+        showView('connected-view');
+        hideOverlay();
+
+        const session = getValidSession();
+        if (session) saveSession(session.role, session.myId, session.targetId);
+
+        startSpeedMeter();
+        showToast('接続が確立されました', 'success');
+    });
+
+    conn.on('data', (data) => {
+        if (!data || !data.type) return;
+        switch (data.type) {
+            case 'terminate':
+                showToast('相手が接続を切断しました', 'warning');
+                terminateAll(false);
+                break;
+            case 'text':
+                document.getElementById('sync-textarea').value = data.payload;
+                flashSyncDot();
+                break;
+            case 'file-chunk':
+                handleIncomingChunk(data);
+                break;
+            case 'ping':
+                conn.send({ type: 'pong', ts: data.ts });
+                break;
+        }
+    });
+
+    conn.on('close', () => {
+        if (isTerminating) return;
+        setStatus('reconnecting', 'RECONNECTING');
+        showToast('接続が切断されました。再接続を試みています...', 'warning', 5000);
+        scheduleReconnect();
+    });
+
+    conn.on('error', (err) => {
+        console.warn('Conn error:', err);
+        if (!isTerminating) {
+            setStatus('error', 'ERROR');
+            scheduleReconnect();
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════
+//  RECONNECTION
+// ═══════════════════════════════════════════════════════
+function scheduleReconnect() {
+    if (isTerminating || reconnectAttempts >= MAX_RECONNECT) {
+        if (reconnectAttempts >= MAX_RECONNECT) {
+            showToast('再接続に失敗しました。セッションを終了します。', 'error', 5000);
+            terminateAll(true);
+        }
+        return;
+    }
+    reconnectAttempts++;
+    const delay = Math.min(RECONNECT_DELAY_BASE * Math.pow(1.5, reconnectAttempts - 1), 15000);
+    document.getElementById('reconnect-badge').classList.remove('hidden');
+    showView('loading-view');
+    document.getElementById('loading-title').textContent = `再接続中... (${reconnectAttempts}/${MAX_RECONNECT})`;
+    document.getElementById('loading-msg').textContent = `${Math.round(delay/1000)}秒後に再試行します。`;
+
+    reconnectTimer = setTimeout(() => {
+        const session = getValidSession();
+        if (!session) { terminateAll(true); return; }
+        if (session.role === 'host') {
+            reconnectAsHost(session.myId);
+        } else {
+            reconnectAsJoin(session.targetId);
+        }
+    }, delay);
+}
+
+function reconnectAsHost(existingId) {
+    if (conn) { try { conn.close(); } catch {} conn = null; }
+    if (!peer || peer.destroyed) {
+        peer = new Peer(existingId, PEER_CONFIG);
+        peer.on('open', () => {
+            document.getElementById('reconnect-badge').classList.add('hidden');
+            setStatus('reconnecting', 'WAITING');
+            showView('loading-view');
+            document.getElementById('loading-title').textContent = '相手の再接続を待っています...';
+            document.getElementById('loading-msg').textContent = 'ページを離れてもセッションは維持されます。';
         });
+        peer.on('connection', (c) => {
+            conn = c;
+            document.getElementById('reconnect-badge').classList.add('hidden');
+            setupConnectionListeners();
+        });
+        peer.on('error', () => scheduleReconnect());
+    } else {
+        peer.on('connection', (c) => {
+            conn = c;
+            document.getElementById('reconnect-badge').classList.add('hidden');
+            setupConnectionListeners();
+        });
+    }
+}
 
-        function copyAllText() {
-            const area = document.getElementById('sync-textarea');
-            area.select();
-            document.execCommand('copy');
-            const btn = event.currentTarget;
-            const old = btn.innerText;
-            btn.innerText = "COPIED!";
-            setTimeout(() => btn.innerText = old, 2000);
+function reconnectAsJoin(targetId) {
+    if (!targetId) { terminateAll(true); return; }
+    if (conn) { try { conn.close(); } catch {} conn = null; }
+
+    if (!peer || peer.destroyed) {
+        peer = new Peer(PEER_CONFIG);
+        peer.on('open', (myId) => {
+            saveSession('join', myId, targetId);
+            conn = peer.connect(targetId, { reliable: true, serialization: 'binary' });
+            setupConnectionListeners();
+        });
+        peer.on('error', () => scheduleReconnect());
+    } else {
+        conn = peer.connect(targetId, { reliable: true, serialization: 'binary' });
+        setupConnectionListeners();
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  HOST
+// ═══════════════════════════════════════════════════════
+function initiateHost(existingId = null) {
+    cleanupPeer();
+    isTerminating = false;
+    isHost = true;
+    reconnectAttempts = 0;
+    document.getElementById('reconnect-badge').classList.add('hidden');
+
+    const randomCode = existingId || Math.floor(10000000 + Math.random() * 90000000).toString();
+    peer = new Peer(randomCode, PEER_CONFIG);
+
+    showView('loading-view');
+    document.getElementById('loading-title').textContent = '接続を準備中...';
+    document.getElementById('loading-msg').textContent = 'ネットワークを設定しています。';
+
+    peer.on('open', (id) => {
+        myPeerId = id;
+        saveSession('host', id);
+        const formatted = id.slice(0,4) + ' ' + id.slice(4,8);
+        document.getElementById('display-host-code').textContent = formatted;
+        document.getElementById('session-code-display').textContent = formatted;
+        document.getElementById('session-bar').classList.remove('hidden');
+
+        const shareUrl = `${location.origin}${location.pathname}?join=${id}`;
+        document.getElementById('overlay-share-url').textContent = shareUrl;
+
+        const qrContainer = document.getElementById('host-qrcode');
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, { text: shareUrl, width: 180, height: 180, colorDark: '#c47f00', colorLight: '#ffffff' });
+
+        setStatus('reconnecting', 'WAITING');
+        document.getElementById('loading-title').textContent = '接続を待っています...';
+        document.getElementById('loading-msg').textContent = 'コードまたはQRコードを相手に共有してください。';
+
+        if (!existingId) showOverlay();
+    });
+
+    peer.on('connection', (c) => {
+        conn = c;
+        setupConnectionListeners();
+    });
+
+    peer.on('disconnected', () => {
+        if (!isTerminating && peer && !peer.destroyed) {
+            peer.reconnect();
         }
+    });
 
-        // --- Initialization ---
-        window.onload = () => {
-            lucide.createIcons();
-            document.getElementById('host-trigger').onclick = () => initiateHost();
-            document.getElementById('join-trigger').onclick = () => initiateJoin();
-            
-            // 1. URLパラメータのチェック（新規参加）
-            const params = new URLSearchParams(window.location.search);
-            const joinCode = params.get('join');
-            
-            // 2. セッション情報のチェック（再接続）
-            const session = getValidSession();
+    peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') { initiateHost(); return; }
+        console.warn('Peer error:', err);
+        if (!isTerminating) scheduleReconnect();
+    });
+}
 
-            if (joinCode) {
-                document.getElementById('join-code-input').value = joinCode;
-                initiateJoin(joinCode);
-            } else if (session) {
-                console.log("Attempting to reconnect session...", session);
-                if (session.role === 'host') {
-                    initiateHost(session.myId);
-                } else if (session.role === 'join' && session.targetId) {
-                    initiateJoin(session.targetId);
-                }
+// ═══════════════════════════════════════════════════════
+//  JOIN
+// ═══════════════════════════════════════════════════════
+function initiateJoin(targetCode = null) {
+    const code = (targetCode || document.getElementById('join-code-input').value.replace(/\s/g, '')).trim();
+    if (code.length < 8) { showToast('8桁のコードを入力してください', 'error'); return; }
+
+    cleanupPeer();
+    isTerminating = false;
+    isHost = false;
+    reconnectAttempts = 0;
+    document.getElementById('reconnect-badge').classList.add('hidden');
+    document.getElementById('session-bar').classList.add('hidden');
+
+    showView('loading-view');
+    document.getElementById('loading-title').textContent = '接続中...';
+    document.getElementById('loading-msg').textContent = 'ピアを探しています。';
+
+    peer = new Peer(PEER_CONFIG);
+
+    peer.on('open', (myId) => {
+        myPeerId = myId;
+        saveSession('join', myId, code);
+        conn = peer.connect(code, { reliable: true, serialization: 'binary' });
+        setupConnectionListeners();
+    });
+
+    peer.on('disconnected', () => {
+        if (!isTerminating && peer && !peer.destroyed) peer.reconnect();
+    });
+
+    peer.on('error', (err) => {
+        console.warn('Peer error:', err);
+        if (!isTerminating) {
+            if (err.type === 'peer-unavailable') {
+                showToast('相手が見つかりません。コードを確認してください。', 'error', 5000);
+                terminateAll(true);
+            } else {
+                scheduleReconnect();
             }
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════
+//  TERMINATE
+// ═══════════════════════════════════════════════════════
+function terminateAll(isInitiator = false) {
+    isTerminating = true;
+    if (isInitiator && conn && conn.open) {
+        try { conn.send({ type: 'terminate' }); } catch {}
+    }
+    clearSession();
+    cleanupPeer();
+    showView('setup-view');
+    hideOverlay();
+    history.replaceState({}, document.title, location.pathname);
+}
+
+// ═══════════════════════════════════════════════════════
+//  FILE SENDING - backpressure + speed measurement
+// ═══════════════════════════════════════════════════════
+document.getElementById('drop-zone').onclick = () => {
+    if (!isSending) document.getElementById('file-input').click();
+};
+
+// Drag & Drop
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragging'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragging'));
+dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('dragging');
+    const file = e.dataTransfer.files[0];
+    if (file) sendFile(file);
+});
+
+document.getElementById('file-input').onchange = e => {
+    const file = e.target.files[0];
+    if (file) sendFile(file);
+    e.target.value = '';
+};
+
+async function sendFile(file) {
+    if (!conn || !conn.open) { showToast('接続されていません', 'error'); return; }
+    if (isSending) { showToast('送信中です。完了をお待ちください。', 'warning'); return; }
+
+    isSending = true;
+    const progressEl = document.getElementById('upload-progress');
+    const fillEl = document.getElementById('upload-progress-fill');
+    const pctEl = document.getElementById('upload-pct');
+    const nameEl = document.getElementById('upload-file-name');
+    const textEl = document.getElementById('drop-zone-text');
+
+    progressEl.classList.remove('hidden');
+    fillEl.classList.add('animate');
+    textEl.textContent = '送信中...';
+    nameEl.textContent = truncate(file.name, 20);
+
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const fileId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+    let sentBytes = 0;
+    const startTime = Date.now();
+
+    try {
+        for (let i = 0; i < totalChunks; i++) {
+            if (!conn || !conn.open) break;
+
+            // Backpressure: wait if buffer is getting full
+            while (conn.dataChannel && conn.dataChannel.bufferedAmount > 1024 * 1024) {
+                await sleep(20);
+            }
+
+            const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            const buffer = await chunk.arrayBuffer();
+
+            conn.send({
+                type: 'file-chunk', fileId,
+                fileName: file.name, fileSize: file.size,
+                chunkIndex: i, totalChunks, data: buffer
+            });
+
+            sentBytes += buffer.byteLength;
+            totalSent += buffer.byteLength;
+            updateStats();
+
+            const pct = Math.round(((i + 1) / totalChunks) * 100);
+            fillEl.style.width = pct + '%';
+            pctEl.textContent = pct + '%';
+            nameEl.textContent = `${truncate(file.name,16)} — ${formatBytes(sentBytes)}/${formatBytes(file.size)}`;
+        }
+    } catch (err) {
+        console.error('Send error:', err);
+        showToast('送信中にエラーが発生しました', 'error');
+    }
+
+    await sleep(400);
+    progressEl.classList.add('hidden');
+    fillEl.classList.remove('animate');
+    fillEl.style.width = '0%';
+    textEl.textContent = 'ファイルを送信';
+    isSending = false;
+
+    addFileToList({ name: file.name, size: file.size, data: URL.createObjectURL(file) }, true);
+    showToast(`${file.name} を送信しました`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  RECEIVING
+// ═══════════════════════════════════════════════════════
+function handleIncomingChunk(chunkData) {
+    const { fileId, fileName, fileSize, chunkIndex, totalChunks, data } = chunkData;
+
+    if (!receivingFiles[fileId]) {
+        receivingFiles[fileId] = {
+            name: fileName, size: fileSize,
+            chunks: new Array(totalChunks), receivedCount: 0
         };
-    </script>
+    }
+
+    receivingFiles[fileId].chunks[chunkIndex] = data;
+    receivingFiles[fileId].receivedCount++;
+
+    const pct = Math.round((receivingFiles[fileId].receivedCount / totalChunks) * 100);
+    totalRecv += data.byteLength || (data.length || 0);
+    updateStats();
+
+    // Show receive progress
+    const banner = document.getElementById('recv-progress-banner');
+    banner.classList.add('visible');
+    document.getElementById('recv-file-name').textContent = truncate(fileName, 20);
+    document.getElementById('recv-pct').textContent = pct + '%';
+    document.getElementById('recv-progress-fill').style.width = pct + '%';
+
+    if (receivingFiles[fileId].receivedCount === totalChunks) {
+        banner.classList.remove('visible');
+        const blob = new Blob(receivingFiles[fileId].chunks);
+        addFileToList({ name: fileName, size: fileSize, data: URL.createObjectURL(blob) }, false);
+        delete receivingFiles[fileId];
+        showToast(`${fileName} を受信しました`, 'success');
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  FILE LIST
+// ═══════════════════════════════════════════════════════
+function addFileToList(file, isMe) {
+    fileCount++;
+    document.getElementById('file-count-badge').textContent = fileCount;
+
+    const empty = document.getElementById('file-list-empty');
+    if (empty) empty.remove();
+
+    const ext = file.name.split('.').pop().toUpperCase().slice(0, 4);
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.innerHTML = `
+        <div class="file-item-icon ${isMe ? 'sent' : 'recv'}">${ext || 'FILE'}</div>
+        <div class="file-item-info">
+            <div class="file-item-name">${escHtml(file.name)}</div>
+            <div class="file-item-meta">${formatBytes(file.size)} · ${isMe ? '↑ 送信済み' : '↓ 受信済み'}</div>
+        </div>
+        <a href="${file.data}" download="${escHtml(file.name)}" class="btn-dl" title="ダウンロード">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+        </a>
+    `;
+    document.getElementById('file-list-items').prepend(item);
+    updateStats();
+}
+
+// ═══════════════════════════════════════════════════════
+//  TEXT SYNC
+// ═══════════════════════════════════════════════════════
+document.getElementById('sync-textarea').addEventListener('input', (e) => {
+    clearTimeout(textSyncTimer);
+    setSyncDot(true);
+    textSyncTimer = setTimeout(() => {
+        if (conn && conn.open) {
+            conn.send({ type: 'text', payload: e.target.value });
+        }
+        setSyncDot(false);
+    }, 150);
+});
+
+function setSyncDot(active) {
+    const dot = document.getElementById('sync-dot');
+    const label = document.getElementById('sync-label');
+    dot.className = 'sync-dot' + (active ? ' syncing' : '');
+    label.textContent = active ? 'SYNCING' : 'IDLE';
+}
+
+function flashSyncDot() {
+    setSyncDot(true);
+    setTimeout(() => setSyncDot(false), 600);
+}
+
+function copyAllText() {
+    const area = document.getElementById('sync-textarea');
+    navigator.clipboard.writeText(area.value).then(() => {
+        showToast('テキストをコピーしました', 'success');
+    }).catch(() => {
+        area.select();
+        document.execCommand('copy');
+        showToast('テキストをコピーしました', 'success');
+    });
+}
+
+function copyShareUrl(el) {
+    const url = el.textContent;
+    navigator.clipboard.writeText(url).then(() => showToast('URLをコピーしました', 'success'));
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATS
+// ═══════════════════════════════════════════════════════
+function updateStats() {
+    document.getElementById('stat-sent').textContent = formatBytes(totalSent);
+    document.getElementById('stat-recv').textContent = formatBytes(totalRecv);
+    document.getElementById('stat-files').textContent = fileCount;
+}
+
+function startSpeedMeter() {
+    clearInterval(speedTimer);
+    lastSpeedBytes = totalSent + totalRecv;
+    speedTimer = setInterval(() => {
+        const now = totalSent + totalRecv;
+        const speed = now - lastSpeedBytes;
+        lastSpeedBytes = now;
+        document.getElementById('stat-speed').textContent = speed > 0 ? `${formatBytes(speed)}/s` : '—';
+    }, 1000);
+}
+
+// ═══════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════
+function formatBytes(b) {
+    if (b === 0) return '0 B';
+    const u = ['B','KB','MB','GB'];
+    const i = Math.floor(Math.log(b) / Math.log(1024));
+    return (b / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + u[i];
+}
+
+function truncate(str, n) {
+    return str.length > n ? str.slice(0, n) + '…' : str;
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('host-trigger').onclick = () => initiateHost();
+    document.getElementById('join-trigger').onclick = () => initiateJoin();
+
+    document.getElementById('join-code-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') initiateJoin();
+    });
+
+    // Format code input live
+    document.getElementById('join-code-input').addEventListener('input', e => {
+        let v = e.target.value.replace(/\D/g, '').slice(0, 8);
+        e.target.value = v;
+    });
+
+    // URL join
+    const params = new URLSearchParams(location.search);
+    const joinCode = params.get('join');
+    const session = getValidSession();
+
+    if (joinCode) {
+        document.getElementById('join-code-input').value = joinCode;
+        initiateJoin(joinCode);
+    } else if (session) {
+        console.log('Resuming session:', session);
+        if (session.role === 'host') initiateHost(session.myId);
+        else if (session.role === 'join' && session.targetId) initiateJoin(session.targetId);
+    }
+});
+
+// ─── Visibility change: reconnect on tab return ───
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && conn && !conn.open && !isTerminating) {
+        const session = getValidSession();
+        if (session) scheduleReconnect();
+    }
+});
+
+// ─── Keepalive ping ───
+setInterval(() => {
+    if (conn && conn.open) {
+        try { conn.send({ type: 'ping', ts: Date.now() }); } catch {}
+    }
+}, 15000);
+</script>
+
+
 </body>
 </html>
